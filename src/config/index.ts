@@ -19,6 +19,7 @@ const envSchema = z.object({
   CRON_SCHEDULE: z.string().default('*/5 * * * *'),
   TRAY_URL: z.string().url(),
   TRAY_TOKEN: z.string(),
+  GOOGLE_WEBHOOK_URL: z.string().url().optional(),
 });
 
 const env = envSchema.safeParse(process.env);

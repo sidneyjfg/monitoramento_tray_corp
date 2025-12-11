@@ -2,8 +2,13 @@ import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
+export type TrayFetchResult = {
+  products: any[];
+  pages: number;
+};
 
-export async function fetchTrayProducts(): Promise<any[]> {
+
+export async function fetchTrayProducts(): Promise<TrayFetchResult> {
   const baseUrl = process.env.TRAY_URL;
   const token = process.env.TRAY_TOKEN;
 
@@ -46,6 +51,10 @@ export async function fetchTrayProducts(): Promise<any[]> {
   }
 
   console.log(`✅ Total de produtos coletados: ${allProducts.length}`);
+  const totalPages = page - 1;
 
-  return allProducts;
+  return {
+    products: allProducts,
+    pages: totalPages
+  };
 }
