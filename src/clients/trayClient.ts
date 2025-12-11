@@ -92,7 +92,7 @@ export async function fetchTrayProducts(): Promise<TrayFetchResult> {
       continue;
     }
 
-    const finalUrl = `${baseUrl.replace(/\/+$/, "")}/produtos?camposAdicionais=estoque?pagina=${page}`;
+    const finalUrl = `${baseUrl.replace(/\/+$/, "")}/produtos?camposAdicionais=estoque&pagina=${page}`;
     console.log(`🔎 Buscando página ${page}: ${finalUrl}`);
 
     requestCount++; // 📌 Conta a requisição desta página
