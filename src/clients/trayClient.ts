@@ -12,12 +12,57 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const RATE_LIMIT = 120;       // 120 requisições por minuto
-const WINDOW_MS = 60000;      // 1 minuto
+const RATE_LIMIT = 120;  // 120 requisições por minuto
+const WINDOW_MS = 60000; // janela de 1 minuto
+
+/**
+ * 🔁 Função responsável por buscar uma página com retry e backoff
+ */
+async function fetchPageWithRetry(finalUrl: string, token: string, page: number) {
+  let retryCount = 0;
+  const maxRetries = 5;
+
+  while (true) {
+    try {
+      const response = await axios.get(finalUrl, {
+        headers: {
+          Authorization: `Basic ${token}`,
+          Accept: "application/json",
+        },
+        timeout: 15000,
+      });
+
+      return response.data; // 🎯 sucesso → retorna a página
+
+    } catch (err: any) {
+      const status = err.response?.status;
+      const message = err.message;
+
+      // 👉 Se não for 429, é erro real → lança erro
+      if (status !== 429) {
+        console.error(`❌ Erro ao buscar página ${page}:`, message);
+        throw err;
+      }
+
+      // 👉 É 429 (rate limit)
+      retryCount++;
+
+      if (retryCount > maxRetries) {
+        console.error(`🛑 429 persistente mesmo após ${maxRetries} tentativas. Abortando.`);
+        throw new Error("Rate limit persistente.");
+      }
+
+      const backoffSeconds = Math.min(60, 5 * Math.pow(2, retryCount));
+      console.log(`⏳ Rate limit! Retry ${retryCount}/${maxRetries}. Esperando ${backoffSeconds}s...`);
+
+      await sleep(backoffSeconds * 1000);
+    }
+  }
+}
 
 export async function fetchTrayProducts(): Promise<TrayFetchResult> {
-  const baseUrl = process.env.TRAY_URL;
-  const token = process.env.TRAY_TOKEN;
+  const baseUrl = process.env.TRAY_URL || "";
+  const token = process.env.TRAY_TOKEN || "";
 
   if (!baseUrl) {
     throw new Error("TRAY_URL não configurada");
@@ -39,10 +84,10 @@ export async function fetchTrayProducts(): Promise<TrayFetchResult> {
       console.log("🆕 Reiniciando janela de rate limit (novo minuto).");
     }
 
-    // ⏳ Se atingir o limite de 120 req/min
+    // ⏳ Se atingiu 120 req/min, aguardar o próximo minuto
     if (requestCount >= RATE_LIMIT) {
       const waitMs = WINDOW_MS - (now - windowStart);
-      console.log(`⏸ Atingimos ${RATE_LIMIT} requisições. Pausando por ${(waitMs / 1000).toFixed(2)}s para evitar 429.`);
+      console.log(`⏸ Limite de ${RATE_LIMIT} req/min atingido. Pausando ${(waitMs / 1000).toFixed(2)}s...`);
       await sleep(waitMs);
       continue;
     }
@@ -50,26 +95,20 @@ export async function fetchTrayProducts(): Promise<TrayFetchResult> {
     const finalUrl = `${baseUrl.replace(/\/+$/, "")}/produtos?pagina=${page}`;
     console.log(`🔎 Buscando página ${page}: ${finalUrl}`);
 
+    requestCount++; // 📌 Conta a requisição desta página
+
     try {
-      requestCount++; // 📌 registra requisição
+      // 🎯 Agora usamos a função segura com retry + backoff
+      const data = await fetchPageWithRetry(finalUrl, token, page);
 
-      const response = await axios.get(finalUrl, {
-        headers: {
-          Authorization: `Basic ${token}`,
-          Accept: "application/json",
-        },
-        timeout: 15000,
-      });
-
-      const data = response.data;
-
+      // 🧪 Validação
       if (!Array.isArray(data)) {
         console.error(`⚠ Página ${page} retornou formato inesperado.`, data);
         break;
       }
 
       if (data.length === 0) {
-        console.log(`🔚 Página ${page} vazia. Encerrando paginação.`);
+        console.log(`🔚 Página ${page} vazia. Fim da paginação.`);
         break;
       }
 
@@ -79,75 +118,19 @@ export async function fetchTrayProducts(): Promise<TrayFetchResult> {
 
     } catch (err: any) {
       const status = err.response?.status;
-      const body = err.response?.data;
-      const message = err.message;
-
-      console.error(`❌ Erro ao buscar página ${page}`);
-      console.error(`   → Status: ${status ?? "SEM STATUS"}`);
-      console.error(`   → Body:`, body ?? "(sem body)");
-      console.error(`   → Mensagem:`, message);
-
-      // 🔁 RETRY com backoff exponencial
-      if (status === 429) {
-        let retryCount = 0;
-        const maxRetries = 5;
-
-        while (retryCount < maxRetries) {
-          retryCount++;
-
-          const backoffSeconds = Math.min(60, 5 * Math.pow(2, retryCount));
-          console.log(`⏳ Rate limit detectado! Retry ${retryCount}/${maxRetries}. Aguardando ${backoffSeconds}s...`);
-
-          await sleep(backoffSeconds * 1000);
-
-          try {
-            const retryResponse = await axios.get(finalUrl, {
-              headers: {
-                Authorization: `Basic ${token}`,
-                Accept: "application/json",
-              },
-              timeout: 15000,
-            });
-
-            const retryData = retryResponse.data;
-
-            if (!Array.isArray(retryData)) {
-              console.error(`⚠ Página ${page} retornou formato inesperado após retry.`);
-              break;
-            }
-
-            if (retryData.length === 0) {
-              console.log(`🔚 Página ${page} vazia após retry. Encerrando.`);
-              break;
-            }
-
-            console.log(`📦 Página ${page} carregada após retry (${retryCount}).`);
-            allProducts.push(...retryData);
-            page++;
-
-            // Continua normalmente no loop principal
-            continue;
-          } catch {
-            console.error(`❌ Falha no retry ${retryCount}.`);
-          }
-        }
-
-        // ❌ Se mesmo assim continuar 429, aborta
-        console.log(`🛑 Rate limit persistente mesmo após ${maxRetries} tentativas. Abortando sincronização para evitar loop infinito.`);
-        break;
-      }
 
       if (status === 404) {
-        console.log(`🔚 Página ${page} não existe (404). Fim.`);
+        console.log(`🔚 Página ${page} não existe (404). Encerrando.`);
         break;
       }
 
-      if (status === 503) {
-        console.log(`🛑 API indisponível (503). Abortando sincronização.`);
+      if (status === 429) {
+        console.log("🛑 Rate limit irreversível. Abortando sincronização.");
         break;
       }
 
-      throw new Error(`Erro ao buscar página ${page}: ${message}`);
+      console.error("❌ Erro inesperado:", err.message);
+      throw err;
     }
   }
 
