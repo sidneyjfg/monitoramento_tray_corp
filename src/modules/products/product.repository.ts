@@ -10,10 +10,11 @@ export class ProductRepository {
   async insertManyTemp(products: TempProduct[]): Promise<void> {
     if (products.length === 0) return;
 
-    const values = products.map((p) => [
+    const values = products.map(p => [
       p.produtoVarianteId,
       p.produtoId,
       p.idPaiExterno,
+
       p.sku,
       p.nome,
       p.nomeProdutoPai,
@@ -38,24 +39,34 @@ export class ProductRepository {
     ]);
 
     const sql = `
-      INSERT INTO temp_products (
-        produtoVarianteId,
-        produtoId,
-        idPaiExterno,
-        sku,
-        nome,
-        nomeProdutoPai,
-        precoCusto,
-        precoDe,
-        precoPor,
-        ean,
-        estoque,
-        dataCriacao,
-        dataAtualizacao,
-        parentId,
-        raw_payload
-      ) VALUES ?
-    `;
+    INSERT INTO temp_products (
+      produtoVarianteId,
+      produtoId,
+      idPaiExterno,
+
+      sku,
+      nome,
+      nomeProdutoPai,
+
+      precoCusto,
+      precoDe,
+      precoPor,
+
+      ean,
+
+      centroDistribuicaoId,
+      estoqueFisico,
+      estoqueReservado,
+      alertaEstoque,
+
+      dataCriacao,
+      dataAtualizacao,
+
+      parentId,
+
+      raw_payload
+    ) VALUES ?
+  `;
 
     await sqlMonitoramentoPool.query(sql, [values]);
   }
