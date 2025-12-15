@@ -10,75 +10,87 @@ export class ProductService {
 
   async syncTrayProductsToTemp() {
     const start = Date.now();
-
-    const { products: rawProducts, pages } = await fetchTrayProducts();
-
-    const valid: TempProduct[] = [];
     let invalid = 0;
+    let inserted = 0;
 
-    for (const raw of rawProducts) {
-      const parsed = trayProductSchema.safeParse(raw);
-
-      if (!parsed.success) {
-        invalid++;
-        continue;
-      }
-
-      const prd = parsed.data;
-
-      // 🔥 explode o array de estoque
-      for (const stock of prd.estoque) {
-        const temp = tempProductSchema.parse({
-          produtoVarianteId: prd.produtoVarianteId,
-          produtoId: prd.produtoId,
-          idPaiExterno: prd.idPaiExterno,
-
-          sku: prd.sku,
-          nome: prd.nome,
-          nomeProdutoPai: prd.nomeProdutoPai,
-
-          precoCusto: prd.precoCusto,
-          precoDe: prd.precoDe,
-          precoPor: prd.precoPor,
-
-          ean: prd.ean,
-
-          centroDistribuicaoId: stock.centroDistribuicaoId,
-          estoqueFisico: stock.estoqueFisico,
-          estoqueReservado: stock.estoqueReservado,
-          alertaEstoque: stock.alertaEstoque,
-
-          dataCriacao: prd.dataCriacao,
-          dataAtualizacao: prd.dataAtualizacao,
-
-          parentId: prd.parentId,
-
-          raw_payload: raw
-        });
-
-        valid.push(temp);
-      }
-    }
+    const BATCH_SIZE = 1000;
 
     await this.repository.clearTempTable();
-    await this.repository.insertManyTemp(valid);
+
+    const pages = await fetchTrayProducts(async (rawProducts, page) => {
+      const batch: TempProduct[] = [];
+
+      for (const raw of rawProducts) {
+        const parsed = trayProductSchema.safeParse(raw);
+
+        if (!parsed.success) {
+          invalid++;
+          continue;
+        }
+
+        const prd = parsed.data;
+
+        for (const stock of prd.estoque) {
+          batch.push(
+            tempProductSchema.parse({
+              produtoVarianteId: prd.produtoVarianteId,
+              produtoId: prd.produtoId,
+              idPaiExterno: prd.idPaiExterno,
+
+              sku: prd.sku,
+              nome: prd.nome,
+              nomeProdutoPai: prd.nomeProdutoPai,
+
+              precoCusto: prd.precoCusto,
+              precoDe: prd.precoDe,
+              precoPor: prd.precoPor,
+
+              ean: prd.ean,
+
+              centroDistribuicaoId: stock.centroDistribuicaoId,
+              estoqueFisico: stock.estoqueFisico,
+              estoqueReservado: stock.estoqueReservado,
+              alertaEstoque: stock.alertaEstoque,
+
+              dataCriacao: prd.dataCriacao,
+              dataAtualizacao: prd.dataAtualizacao,
+
+              parentId: prd.parentId,
+
+              // ⚠️ payload reduzido (evita explodir memória)
+              raw_payload: {
+                produtoVarianteId: prd.produtoVarianteId,
+                produtoId: prd.produtoId,
+                sku: prd.sku
+              }
+            })
+          );
+        }
+      }
+
+      // 🔥 INSERT EM SUB-BATCH
+      for (let i = 0; i < batch.length; i += BATCH_SIZE) {
+        const slice = batch.slice(i, i + BATCH_SIZE);
+        await this.repository.insertManyTemp(slice);
+        inserted += slice.length;
+      }
+
+      console.log(`✅ Página ${page} inserida (${batch.length} linhas)`);
+    });
 
     const duration = Math.round((Date.now() - start) / 1000);
 
-    // 🔥🔥🔥 ENVIO DA NOTIFICAÇÃO AQUI 🔥🔥🔥
     await notificationService.notifySyncResult({
-      totalProducts: valid.length,
+      totalProducts: inserted,
       totalPages: pages,
       durationSeconds: duration
     });
 
     return {
-      inserted: valid.length,
+      inserted,
       invalid
     };
   }
-
-
 
 }
 
