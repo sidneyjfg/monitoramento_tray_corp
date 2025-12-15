@@ -38,7 +38,11 @@ export const validateAndCreateTables = async () => {
         precoPor DECIMAL(10,2) NULL,
 
         ean VARCHAR(100) NULL,
-        estoque JSON NOT NULL,
+        
+        centroDistribuicaoId INT NOT NULL,
+        estoqueFisico INT NOT NULL,
+        estoqueReservado INT NOT NULL,
+        alertaEstoque INT NOT NULL,
 
         dataCriacao DATETIME NULL,
         dataAtualizacao DATETIME NULL,
@@ -48,6 +52,7 @@ export const validateAndCreateTables = async () => {
         raw_payload JSON NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+        INDEX idx_centroDistribuicaoId (centroDistribuicaoId),
         INDEX idx_produtoVarianteId (produtoVarianteId),
         INDEX idx_produtoId (produtoId),
         INDEX idx_sku (sku)

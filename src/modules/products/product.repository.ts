@@ -23,7 +23,11 @@ export class ProductRepository {
       p.precoPor,
 
       p.ean,
-      JSON.stringify(p.estoque),
+
+      p.centroDistribuicaoId,
+      p.estoqueFisico,
+      p.estoqueReservado,
+      p.alertaEstoque,
 
       p.dataCriacao,
       p.dataAtualizacao,

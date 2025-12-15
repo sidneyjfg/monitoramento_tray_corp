@@ -1,12 +1,27 @@
 import { z } from "zod";
 
+/**
+ * 🔹 Item de estoque por centro de distribuição
+ */
+export const estoqueItemSchema = z.object({
+  centroDistribuicaoId: z.number(),
+  estoqueFisico: z.number(),
+  estoqueReservado: z.number(),
+  alertaEstoque: z.number()
+});
+
+export type EstoqueItem = z.infer<typeof estoqueItemSchema>;
+
+/**
+ * 🔹 Produto vindo da Tray (AJUSTE AQUI 👇)
+ */
 export const trayProductSchema = z.object({
   produtoVarianteId: z.number(),
   produtoId: z.number(),
 
   idPaiExterno: z
     .union([z.string(), z.number(), z.null()])
-    .transform(v => v === null || v === "" ? null : Number(v)),
+    .transform(v => (v === null || v === "" ? null : Number(v))),
 
   sku: z.string(),
   nome: z.string(),
@@ -18,19 +33,24 @@ export const trayProductSchema = z.object({
 
   ean: z.string().nullable(),
 
-  estoque: z.array(z.any()),
+  // 🔥 agora tipado corretamente
+  estoque: z.array(estoqueItemSchema),
 
   dataCriacao: z.string(),
   dataAtualizacao: z.string(),
 
-  parentId: z.union([z.number(), z.string(), z.null()]).transform(v => v ? Number(v) : null),
+  parentId: z.union([z.number(), z.string(), z.null()])
+    .transform(v => (v ? Number(v) : null)),
 });
 
-
+/**
+ * 🔹 Mantido como está (SEM ALTERAÇÃO)
+ */
 export const tempProductSchema = z.object({
   produtoVarianteId: z.number(),
   produtoId: z.number(),
   idPaiExterno: z.number().nullable(),
+
   sku: z.string(),
   nome: z.string(),
   nomeProdutoPai: z.string().nullable(),
@@ -41,7 +61,10 @@ export const tempProductSchema = z.object({
 
   ean: z.string().nullable(),
 
-  estoque: z.any(),
+  centroDistribuicaoId: z.number(),
+  estoqueFisico: z.number(),
+  estoqueReservado: z.number(),
+  alertaEstoque: z.number(),
 
   dataCriacao: z.string(),
   dataAtualizacao: z.string(),
@@ -50,5 +73,6 @@ export const tempProductSchema = z.object({
 
   raw_payload: z.unknown()
 });
+
 
 export type TempProduct = z.infer<typeof tempProductSchema>;

@@ -26,13 +26,38 @@ export class ProductService {
 
       const prd = parsed.data;
 
-      const temp = tempProductSchema.parse({
-        ...prd,
-        estoque: prd.estoque,
-        raw_payload: raw
-      });
+      // 🔥 explode o array de estoque
+      for (const stock of prd.estoque) {
+        const temp = tempProductSchema.parse({
+          produtoVarianteId: prd.produtoVarianteId,
+          produtoId: prd.produtoId,
+          idPaiExterno: prd.idPaiExterno,
 
-      valid.push(temp);
+          sku: prd.sku,
+          nome: prd.nome,
+          nomeProdutoPai: prd.nomeProdutoPai,
+
+          precoCusto: prd.precoCusto,
+          precoDe: prd.precoDe,
+          precoPor: prd.precoPor,
+
+          ean: prd.ean,
+
+          centroDistribuicaoId: stock.centroDistribuicaoId,
+          estoqueFisico: stock.estoqueFisico,
+          estoqueReservado: stock.estoqueReservado,
+          alertaEstoque: stock.alertaEstoque,
+
+          dataCriacao: prd.dataCriacao,
+          dataAtualizacao: prd.dataAtualizacao,
+
+          parentId: prd.parentId,
+
+          raw_payload: raw
+        });
+
+        valid.push(temp);
+      }
     }
 
     await this.repository.clearTempTable();
